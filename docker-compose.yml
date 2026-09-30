@@ -1,0 +1,31 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: telemetry-recovery:latest
+    environment:
+      # Override with: TELEMETRY_PORT=9090 docker compose up
+      TELEMETRY_PORT: ${TELEMETRY_PORT:-8080}
+    ports:
+      - "${TELEMETRY_PORT:-8080}:${TELEMETRY_PORT:-8080}"
+    restart: unless-stopped
+
+  # One-shot verification: build check + unit tests + recovery smoke test
+  # against the live api service (including a pseudo sync word inside a
+  # payload).  Exits on its own with a bitmask exit code:
+  #   0 all passed; 1 code tests failed; 2 build check failed;
+  #   4 recovery smoke failed.
+  verify:
+    image: telemetry-recovery:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      TELEMETRY_PORT: ${TELEMETRY_PORT:-8080}
+      SMOKE_BASE_URL: http://api:${TELEMETRY_PORT:-8080}
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["python3", "verify.py"]
+    restart: "no"
